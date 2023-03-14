@@ -1,10 +1,10 @@
 import tensorflow_hub as hub
-import tensorflow as tf
 import numpy as np
+import random
 import bert
 
 
-class Pre_process():
+class Preprocess():
 
     def __init__(self):
         self.embedding = self.bert_layer()
@@ -17,10 +17,11 @@ class Pre_process():
         do_lower_case = bert_layer.resolved_object.do_lower_case.numpy()
         return FullTokenizer(vocab_file, do_lower_case)
 
-    def bert_layer():
+    def bert_layer(self):
         return hub.KerasLayer('https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/1', trainable=False)
 
     def encode_sentence(self, sent):
+        print('sent', sent)
         return ["[CLS]"] + self.tokenizer.tokenize(sent) + ["[SEP]"]
 
     def get_ids(self, tokens):
@@ -50,11 +51,16 @@ class Pre_process():
         elif intent == "technology":
             return 4
 
-    def createBertLayer(self, sent):
-        text = self.encode_sentence(text)
-        sent, tokens = self.bert_layer([
-            tf.expand_dims(tf.cast(self.get_ids(text), tf.int32), 0),
-            tf.expand_dims(tf.cast(self.get_mask(text), tf.int32), 0),
-            tf.expand_dims(tf.cast(self.get_segments(text), tf.int32), 0)
-        ])
-        return sent
+    def preprocess(self, dataset):
+        data_inputs = [self.encode_sentence(
+            setence) for setence in dataset.text]
+        dataset['intent_number'] = dataset.intent.apply(self.transfor_label)
+        data_labels = dataset.intent_number.values
+        data_labels = data_labels.astype('i')
+        data_with_len = [[sent, data_labels[i], len(sent)]
+                         for i, sent in enumerate(data_inputs)]
+        random.shuffle(data_with_len)
+        data_with_len.sort(key=lambda x: x[2])
+        sorted_all = [([self.get_ids(sent_lab[0]), self.get_mask(sent_lab[0]), self.get_segments(
+            sent_lab[0])], sent_lab[1]) for sent_lab in data_with_len]
+        return sorted_all
